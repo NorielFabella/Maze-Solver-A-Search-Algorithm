@@ -13,10 +13,8 @@ class MazeApp(tk.Tk):
         self.geometry("+100+50")
 
         self.grid_size_options = {"10x10": 10, "20x20": 20, "30x30": 30}
-        self.density_options = {"10%": 0.10, "20%": 0.20, "30%": 0.30}
 
         self.grid_size = 30
-        self.wall_density = 0.05
 
         self.start = (0, 0)
         self.goal = (self.grid_size - 1, self.grid_size - 1)
@@ -37,15 +35,10 @@ class MazeApp(tk.Tk):
         tk.Button(control_frame, text="Reset Maze", command=self.reset).pack(side=tk.LEFT)
 
         self.size_var = tk.StringVar(value="30x30")
-        self.density_var = tk.StringVar(value="10%")
 
         tk.Label(control_frame, text="Size:").pack(side=tk.LEFT)
         size_menu = ttk.OptionMenu(control_frame, self.size_var, "30x30", *self.grid_size_options.keys(), command=self._on_dropdown_change)
         size_menu.pack(side=tk.LEFT)
-
-        tk.Label(control_frame, text="Density:").pack(side=tk.LEFT)
-        density_menu = ttk.OptionMenu(control_frame, self.density_var, "10%", *self.density_options.keys(), command=self._on_dropdown_change)
-        density_menu.pack(side=tk.LEFT)
 
         tk.Radiobutton(control_frame, text="Set Start", variable=tk.StringVar(value=""), value="start",
                        command=lambda: self._set_mode('start')).pack(side=tk.LEFT)
@@ -53,14 +46,13 @@ class MazeApp(tk.Tk):
                        command=lambda: self._set_mode('goal')).pack(side=tk.LEFT)
         tk.Button(control_frame, text="Done", command=lambda: self._set_mode(None)).pack(side=tk.LEFT)
 
-        self.results_label = tk.Label(self, text="Avg. Path Length: 0 | Avg. Time (ms): 0")
+        self.results_label = tk.Label(self, text="Avg. Path Length: 0 | Avg. Time (ms): 0 | DFS Steps: 0")
         self.results_label.pack()
 
         self.canvas.bind('<Button-1>', self._on_canvas_click)
 
     def _on_dropdown_change(self, _=None):
         self.grid_size = self.grid_size_options[self.size_var.get()]
-        self.wall_density = self.density_options[self.density_var.get()]
         self.start = (0, 0)
         self.goal = (self.grid_size - 1, self.grid_size - 1)
 
@@ -70,7 +62,7 @@ class MazeApp(tk.Tk):
         self._reset_results()
 
     def _reset_results(self):
-        self.results_label.config(text="Avg. Path Length: 0 | Avg. Time (ms): 0")
+        self.results_label.config(text="Avg. Path Length: 0 | Avg. Time (ms): 0 | DFS Steps: 0")
 
     def _set_mode(self, mode):
         self.set_mode = mode
@@ -93,7 +85,7 @@ class MazeApp(tk.Tk):
 
     def _generate_and_setup_maze(self):
         self.grid = [[1 for _ in range(self.grid_size)] for _ in range(self.grid_size)]
-        
+
         stack = [(0, 0)]
         visited = set(stack)
         self.grid[0][0] = 0
@@ -113,17 +105,14 @@ class MazeApp(tk.Tk):
             else:
                 stack.pop()
 
-        self._add_loops(int(self.grid_size * self.grid_size * self.wall_density))
-
         for i in range(self.grid_size):
             for j in range(self.grid_size):
                 if (i, j) == self.start or (i, j) == self.goal:
                     continue
-                    
                 if (i == 0 or i == self.grid_size-1 or j == 0 or j == self.grid_size-1):
-                    if self.grid[i][j] == 1 and random.random() > self.wall_density:
+                    if self.grid[i][j] == 1 and random.random() > 0.1:
                         self.grid[i][j] = 0
-                    elif self.grid[i][j] == 0 and random.random() < self.wall_density * 0.3:
+                    elif self.grid[i][j] == 0 and random.random() < 0.03:
                         self.grid[i][j] = 1
 
         sx, sy = self.start
@@ -136,23 +125,6 @@ class MazeApp(tk.Tk):
             if 0 <= nx < self.grid_size and 0 <= ny < self.grid_size:
                 self.grid[nx][ny] = 0
                 break
-
-    def _add_loops(self, count):
-        attempts = 0
-        added = 0
-        while added < count and attempts < count * 10:
-            attempts += 1
-            i = random.randrange(1, self.grid_size - 1)
-            j = random.randrange(1, self.grid_size - 1)
-            if self.grid[i][j] == 1:
-                open_neighbors = []
-                for dx, dy in [(1,0),(-1,0),(0,1),(0,-1)]:
-                    ni, nj = i + dx, j + dy
-                    if self.grid[ni][nj] == 0:
-                        open_neighbors.append((dx, dy))
-                if len(open_neighbors) >= 2:
-                    self.grid[i][j] = 0
-                    added += 1
 
     def _draw_grid(self, path=None, alt_path=None):
         self.canvas.delete("all")
@@ -191,8 +163,9 @@ class MazeApp(tk.Tk):
             self._draw_grid(path, alt_path)
             path_length = len(path)
             time_ms = (end_time - start_time) * 1000
+            dfs_steps = len(alt_path) if alt_path else 0
             self.results_label.config(
-                text=f"Avg. Path Length: {path_length} | Avg. Time (ms): {time_ms:.2f}"
+                text=f"Avg. Path Length: {path_length} | Avg. Time (ms): {time_ms:.2f} | DFS Steps: {dfs_steps}"
             )
         else:
             messagebox.showinfo("No Path", "No path could be found!")
@@ -203,6 +176,7 @@ class MazeApp(tk.Tk):
         self._generate_and_setup_maze()
         self._draw_grid()
         self._reset_results()
+
 
 def a_star(grid, start, goal):
     rows, cols = len(grid), len(grid[0])
